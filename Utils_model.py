@@ -10,6 +10,8 @@ from keras.applications.vgg19 import VGG19
 import keras.backend as K
 from keras.models import Model
 from keras.optimizers import Adam
+import tensorflow as tf
+from npu_bridge.npu_init import *
 
 class VGG_LOSS(object):
 
@@ -32,5 +34,12 @@ class VGG_LOSS(object):
     
 def get_optimizer():
  
-    adam = Adam(lr=1E-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
-    return adam
+    # adam = Adam(lr=1E-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+    opt = tf.train.AdamOptimizer(learning_rate=1E-4, beta1=0.9, beta2=0.999, epsilon=1e-08)
+
+    # loss_scale_manager = FixedLossScaleManager(loss_scale=2**10)
+    loss_scale_manager = ExponentialUpdateLossScaleManager(init_loss_scale=2**16, incr_every_n_steps=1000,
+                                                           decr_every_n_nan_or_inf=2, decr_ratio=0.5)
+    opt = NPULossScaleOptimizer(opt, loss_scale_manager)
+
+    return opt

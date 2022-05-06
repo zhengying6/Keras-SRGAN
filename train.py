@@ -9,18 +9,31 @@
 from Network import Generator, Discriminator
 import Utils_model, Utils
 from Utils_model import VGG_LOSS
-
+import tensorflow as tf
+import tensorflow.python.keras as keras
+from tensorflow.python.keras import backend as K
 from keras.models import Model
 from keras.layers import Input
 from tqdm import tqdm
+import datetime
 import numpy as np
 import argparse
+import os
+from npu_bridge.npu_init import *
+sess_config=tf.ConfigProto()
+custom_op =sess_config.graph_options.rewrite_options.custom_optimizers.add()
+custom_op.name = "NpuOptimizer"
+sess_config.graph_options.rewrite_options.remapping=RewriterConfig.OFF
+sess_config.graph_options.rewrite_options.memory_optimization=RewriterConfig.OFF
+
+sess=tf.Session(config=sess_config)
+K.set_session(sess)
 
 np.random.seed(10)
 # Better to use downscale factor as 4
 downscale_factor = 4
 # Remember to change image shape if you are having different size of images
-image_shape = (384,384,3)
+image_shape = (192,192,3)
 
 # Combined network
 def get_gan_network(discriminator, shape, generator, optimizer, vgg_loss):
@@ -57,8 +70,9 @@ def train(epochs, batch_size, input_dir, output_dir, model_save_dir, number_of_i
     loss_file = open(model_save_dir + 'losses.txt' , 'w+')
     loss_file.close()
 
-    for e in range(1, epochs+1):
-        print ('-'*15, 'Epoch %d' % e, '-'*15)
+    # for e in range(1, epochs+1):
+    for e in range(1, 25):
+        print (datetime.datetime.now().strftime('%Y%m%d%H%M%S'), '-'*15, 'Epoch %d' % e, '-'*15, '----batch_count----', batch_count)
         for _ in tqdm(range(batch_count)):
             
             rand_nums = np.random.randint(0, x_train_hr.shape[0], size=batch_size)
@@ -83,14 +97,13 @@ def train(epochs, batch_size, input_dir, output_dir, model_save_dir, number_of_i
             gan_Y = np.ones(batch_size) - np.random.random_sample(batch_size)*0.2
             discriminator.trainable = False
             gan_loss = gan.train_on_batch(image_batch_lr, [image_batch_hr,gan_Y])
-            
-            
-        print("discriminator_loss : %f" % discriminator_loss)
-        print("gan_loss :", gan_loss)
+
+            print(datetime.datetime.now().strftime('%Y%m%d%H%M%S'), "discriminator_loss : %f" % discriminator_loss)
+            print(datetime.datetime.now().strftime('%Y%m%d%H%M%S'), "gan_loss :", gan_loss)
         gan_loss = str(gan_loss)
         
         loss_file = open(model_save_dir + 'losses.txt' , 'a')
-        loss_file.write('epoch%d : gan_loss = %s ; discriminator_loss = %f\n' %(e, gan_loss, discriminator_loss) )
+        loss_file.write('%s epoch%d : gan_loss = %s ; discriminator_loss = %f\n' %(datetime.datetime.now().strftime('%Y%m%d%H%M%S'), e, gan_loss, discriminator_loss) )
         loss_file.close()
 
         if e == 1 or e % 5 == 0:
@@ -113,13 +126,13 @@ if __name__== "__main__":
     parser.add_argument('-m', '--model_save_dir', action='store', dest='model_save_dir', default='./model/' ,
                     help='Path for model')
 
-    parser.add_argument('-b', '--batch_size', action='store', dest='batch_size', default=64,
+    parser.add_argument('-b', '--batch_size', action='store', dest='batch_size', default=32,
                     help='Batch Size', type=int)
                     
-    parser.add_argument('-e', '--epochs', action='store', dest='epochs', default=1000 ,
+    parser.add_argument('-e', '--epochs', action='store', dest='epochs', default=800 ,
                     help='number of iteratios for trainig', type=int)
                     
-    parser.add_argument('-n', '--number_of_images', action='store', dest='number_of_images', default=1000 ,
+    parser.add_argument('-n', '--number_of_images', action='store', dest='number_of_images', default=10000 ,
                     help='Number of Images', type= int)
                     
     parser.add_argument('-r', '--train_test_ratio', action='store', dest='train_test_ratio', default=0.8 ,
